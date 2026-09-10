@@ -4,30 +4,89 @@
 // kazandıysa Supabase'e kaydeder ve sırasını döner.
 
 import { supabase } from '../../lib/db';
+import crypto from 'crypto';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '10mb' } }
 };
 
+const HOURLY_LIMIT = 10;   // aynı IP'den saatte en fazla 10 analiz denemesi
+const DAILY_LIMIT = 30;    // aynı IP'den günde en fazla 30 analiz denemesi
+
+function hashValue(value) {
+  const salt = (process.env.ANTHROPIC_API_KEY || 'fallback-salt').slice(0, 12);
+  return crypto.createHash('sha256').update(salt + ':' + value).digest('hex');
+}
+
+function getClientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (fwd) return fwd.split(',')[0].trim();
+  return req.socket?.remoteAddress || 'unknown';
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Sadece POST' });
+    return res.status(405).json({ error: 'POST only' });
   }
 
   const { image, nickname } = req.body;
 
   if (!image || !nickname || !nickname.trim()) {
-    return res.status(400).json({ error: 'Görsel ve rumuz gerekli.' });
+    return res.status(400).json({ error: 'Image and nickname are required.' });
   }
 
   const match = image.match(/^data:(image\/\w+);base64,(.+)$/);
   if (!match) {
-    return res.status(400).json({ error: 'Geçersiz görsel formatı.' });
+    return res.status(400).json({ error: 'Invalid image format.' });
   }
   const mediaType = match[1];
   const base64 = match[2];
 
+  const ipHash = hashValue(getClientIp(req));
+  const imageHash = hashValue(base64.slice(0, 5000)); // görselin baş kısmından hash, yeterince ayırt edici
+
   try {
+    // 1) Hız sınırı kontrolü
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { count: hourlyCount, error: hourlyErr } = await supabase
+      .from('request_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('ip_hash', ipHash)
+      .gte('created_at', oneHourAgo);
+    if (hourlyErr) throw hourlyErr;
+
+    if ((hourlyCount || 0) >= HOURLY_LIMIT) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
+    }
+
+    const { count: dailyCount, error: dailyErr } = await supabase
+      .from('request_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('ip_hash', ipHash)
+      .gte('created_at', oneDayAgo);
+    if (dailyErr) throw dailyErr;
+
+    if ((dailyCount || 0) >= DAILY_LIMIT) {
+      return res.status(429).json({ error: 'Daily attempt limit reached. Try again tomorrow.' });
+    }
+
+    // 2) Aynı kuponun tekrar yüklenip yüklenmediğini kontrol et
+    const { data: existing, error: dupErr } = await supabase
+      .from('request_log')
+      .select('id')
+      .eq('image_hash', imageHash)
+      .limit(1);
+    if (dupErr) throw dupErr;
+
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ error: 'This slip has already been submitted.' });
+    }
+
+    // 3) Denemeyi logla (sonuç ne olursa olsun, hem sınır hem tekrar kontrolü için)
+    await supabase.from('request_log').insert({ ip_hash: ipHash, image_hash: imageHash });
+
     const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
