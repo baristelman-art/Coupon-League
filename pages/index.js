@@ -8,18 +8,31 @@ export default function Home() {
   const [status, setStatus] = useState({ text: '', kind: '' });
   const [result, setResult] = useState(null);
   const [board, setBoard] = useState([]);
+  const [period, setPeriod] = useState('all');
+  const [winners, setWinners] = useState({ daily: null, weekly: null, monthly: null });
 
-  const loadBoard = useCallback(async () => {
+  const loadBoard = useCallback(async (p) => {
     try {
-      const res = await fetch('/api/leaderboard?limit=20');
+      const res = await fetch(`/api/leaderboard?limit=20&period=${p}`);
       const data = await res.json();
       setBoard(data.entries || []);
     } catch (e) {
-      // sessizce geç, tablo boş kalır
+      // fail silently, board stays as-is
     }
   }, []);
 
-  useEffect(() => { loadBoard(); }, [loadBoard]);
+  const loadWinners = useCallback(async () => {
+    try {
+      const res = await fetch('/api/winners');
+      const data = await res.json();
+      setWinners(data);
+    } catch (e) {
+      // fail silently
+    }
+  }, []);
+
+  useEffect(() => { loadBoard(period); }, [period, loadBoard]);
+  useEffect(() => { loadWinners(); }, [loadWinners]);
 
   function handleFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -67,7 +80,7 @@ export default function Home() {
       setResult(data);
       if (data.won) {
         setStatus({ text: 'Your slip was added to the leaderboard.', kind: 'ok' });
-        loadBoard();
+        loadBoard(period);
       } else {
         setStatus({ text: 'Only winning slips make the leaderboard.', kind: 'err' });
       }
@@ -215,6 +228,13 @@ export default function Home() {
 
         <div className="panel">
           <p className="panel-title">LEADERBOARD</p>
+          <div className="tabs">
+            {[['all', 'All-time'], ['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month']].map(([key, label]) => (
+              <button key={key} className={`tab ${period === key ? 'active' : ''}`} onClick={() => setPeriod(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
           {board.length === 0 ? (
             <div className="empty">No slips yet. Take the top spot.</div>
           ) : (
@@ -229,6 +249,23 @@ export default function Home() {
               </div>
             ))
           )}
+        </div>
+
+        <div className="panel">
+          <p className="panel-title">PAST WINNERS</p>
+          {[['daily', 'Yesterday'], ['weekly', 'Last Week'], ['monthly', 'Last Month']].map(([key, label]) => (
+            <div className="winner-row" key={key}>
+              <div className="winner-label">{label}</div>
+              {winners[key] ? (
+                <div className="winner-info">
+                  <span className="winner-name">{winners[key].nickname}</span>
+                  <span className="winner-score">{winners[key].score} pts</span>
+                </div>
+              ) : (
+                <span className="winner-info empty-inline">Not determined yet</span>
+              )}
+            </div>
+          ))}
         </div>
 
         <div className="note">
@@ -278,6 +315,16 @@ export default function Home() {
         .board-row .pts{font-family:'Anton',sans-serif;font-size:1.15rem;text-align:right;}
         .board-row.top1 .rank{color:var(--win);}
         .empty{color:var(--chalk);font-size:0.9rem;text-align:center;padding:20px 0;}
+        .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+        .tab{padding:7px 12px;background:var(--navy);border:1px solid var(--chalk-line);border-radius:4px;color:var(--chalk);font-size:0.8rem;font-weight:600;cursor:pointer;}
+        .tab.active{background:var(--amber);color:var(--navy);border-color:var(--amber);}
+        .winner-row{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--chalk-line);}
+        .winner-row:last-child{border-bottom:none;}
+        .winner-label{font-size:0.85rem;color:var(--chalk);}
+        .winner-info{display:flex;gap:10px;align-items:baseline;}
+        .winner-name{font-weight:700;font-size:0.95rem;}
+        .winner-score{font-family:'Anton',sans-serif;color:var(--amber);font-size:1rem;}
+        .empty-inline{color:var(--chalk);font-size:0.85rem;font-style:italic;}
         .note{margin-top:28px;font-size:0.78rem;color:var(--chalk);text-align:center;border-top:1px solid var(--chalk-line);padding-top:16px;}
       `}</style>
     </>
