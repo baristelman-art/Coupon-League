@@ -42,11 +42,11 @@ export default function Home() {
   }
 
   async function analyze() {
-    if (!nickname.trim()) { setStatus({ text: 'Önce bir rumuz gir.', kind: 'err' }); return; }
-    if (!imageDataUrl) { setStatus({ text: 'Önce bir kupon görseli seç.', kind: 'err' }); return; }
+    if (!nickname.trim()) { setStatus({ text: 'Enter a nickname first.', kind: 'err' }); return; }
+    if (!imageDataUrl) { setStatus({ text: 'Select a slip image first.', kind: 'err' }); return; }
 
     setLoading(true);
-    setStatus({ text: 'Kupon analiz ediliyor…', kind: '' });
+    setStatus({ text: 'Analyzing slip…', kind: '' });
     setResult(null);
 
     try {
@@ -57,22 +57,22 @@ export default function Home() {
       });
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || 'Bilinmeyen hata');
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
 
       if (data.valid === false) {
-        setStatus({ text: 'Bu görsel bir bahis kuponuna benzemiyor.', kind: 'err' });
+        setStatus({ text: "This image doesn't look like a betting slip.", kind: 'err' });
         return;
       }
 
       setResult(data);
       if (data.won) {
-        setStatus({ text: 'Kupon skor tablosuna eklendi.', kind: 'ok' });
+        setStatus({ text: 'Your slip was added to the leaderboard.', kind: 'ok' });
         loadBoard();
       } else {
-        setStatus({ text: 'Sadece kazanan kuponlar skor tablosuna girer.', kind: 'err' });
+        setStatus({ text: 'Only winning slips make the leaderboard.', kind: 'err' });
       }
     } catch (err) {
-      setStatus({ text: 'Sorun: ' + err.message, kind: 'err' });
+      setStatus({ text: 'Error: ' + err.message, kind: 'err' });
     } finally {
       setLoading(false);
     }
@@ -95,7 +95,7 @@ export default function Home() {
     ctx.fillStyle = '#F4F1E8';
     ctx.font = '700 34px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('KUPON LİGİ SERTİFİKASI', 450, 70);
+    ctx.fillText('COUPON LEAGUE CERTIFICATE', 450, 70);
 
     const img = new Image();
     img.onload = () => {
@@ -110,28 +110,28 @@ export default function Home() {
       ctx.textAlign = 'left';
       ctx.fillStyle = '#8C9C93';
       ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('RUMUZ', rx, 150);
+      ctx.fillText('NICKNAME', rx, 150);
       ctx.fillStyle = '#F4F1E8';
       ctx.font = '700 28px Inter, sans-serif';
       ctx.fillText(nickname, rx, 182);
 
       ctx.fillStyle = '#8C9C93';
       ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('TOPLAM ORAN', rx, 240);
+      ctx.fillText('TOTAL ODDS', rx, 240);
       ctx.fillStyle = '#F4F1E8';
       ctx.font = '700 28px Inter, sans-serif';
       ctx.fillText(result.odds.toFixed(2), rx, 272);
 
       ctx.fillStyle = '#8C9C93';
       ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('MAÇ SAYISI', rx, 330);
+      ctx.fillText('MATCHES', rx, 330);
       ctx.fillStyle = '#F4F1E8';
       ctx.font = '700 28px Inter, sans-serif';
       ctx.fillText(String(result.matches), rx, 362);
 
       ctx.fillStyle = '#8C9C93';
       ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('PUAN', rx, 420);
+      ctx.fillText('SCORE', rx, 420);
       ctx.fillStyle = '#FFB627';
       ctx.font = '700 56px Inter, sans-serif';
       ctx.fillText(String(result.score), rx, 470);
@@ -139,7 +139,7 @@ export default function Home() {
       ctx.fillStyle = '#8C9C93';
       ctx.font = '400 14px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(new Date().toLocaleDateString('tr-TR'), 450, 560);
+      ctx.fillText(new Date().toLocaleDateString('en-US'), 450, 560);
 
       setCertDataUrl(canvas.toDataURL('image/png'));
     };
@@ -149,61 +149,61 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Kupon Ligi</title>
+        <title>Coupon League</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </Head>
 
       <div className="wrap">
         <div className="hero">
-          <h1>KUPON <span>LİGİ</span></h1>
-          <p>Kuponunu yükle, oranına ve maç sayısına göre puanla, ligdeki yerini gör.</p>
+          <h1>COUPON <span>LEAGUE</span></h1>
+          <p>Upload your slip, get scored by odds and match count, and see your place in the league.</p>
         </div>
 
         <div className="panel">
-          <p className="panel-title">KUPONUNU GÖNDER</p>
+          <p className="panel-title">SUBMIT YOUR SLIP</p>
 
           <div className="field">
-            <label>Rumuzun</label>
-            <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} maxLength={24} placeholder="Ligde görünecek isim" />
+            <label>Your nickname</label>
+            <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} maxLength={24} placeholder="Name shown on the leaderboard" />
           </div>
 
           <div className="field">
-            <label>Kupon ekran görüntüsü</label>
+            <label>Slip screenshot</label>
             <div className="dropzone" onClick={() => document.getElementById('fileInput').click()}>
-              <div className="dropzone-text">{imageDataUrl ? 'Görsel seçildi ✓' : 'Görsel seçmek için tıkla'}</div>
-              {imageDataUrl && <img className="preview" src={imageDataUrl} alt="önizleme" />}
+              <div className="dropzone-text">{imageDataUrl ? 'Image selected ✓' : 'Click to choose an image'}</div>
+              {imageDataUrl && <img className="preview" src={imageDataUrl} alt="preview" />}
               <input id="fileInput" type="file" accept="image/*" style={{ display: 'none' }}
                 onChange={e => handleFile(e.target.files[0])} />
             </div>
           </div>
 
           <button className="primary" onClick={analyze} disabled={loading}>
-            {loading ? 'Analiz ediliyor…' : 'Kuponu Analiz Et'}
+            {loading ? 'Analyzing…' : 'Analyze Slip'}
           </button>
           {status.text && <div className={`status ${status.kind}`}>{status.text}</div>}
 
           {result && result.valid && (
             <div className="result">
               <div className="rank-badge">
-                {result.won ? `LİGDEKİ SIRAN: #${result.rank}` : 'SIRALAMAYA GİREMEDİ'}
+                {result.won ? `YOUR RANK: #${result.rank}` : 'DID NOT QUALIFY'}
               </div>
               <div className="result-grid">
-                <div className="stat"><div className="k">Toplam Oran</div><div className="v">{result.odds.toFixed(2)}</div></div>
-                <div className="stat"><div className="k">Maç Sayısı</div><div className="v">{result.matches}</div></div>
-                <div className="stat score"><div className="k">Puan</div><div className="v">{result.score}</div></div>
-                <div className="stat"><div className="k">Durum</div><div className="v" style={{ fontSize: '1.1rem' }}>
-                  {result.durum === 'kazandi' ? 'Kazandı ✓' : result.durum === 'kaybetti' ? 'Kaybetti' : 'Belirsiz'}
+                <div className="stat"><div className="k">Total Odds</div><div className="v">{result.odds.toFixed(2)}</div></div>
+                <div className="stat"><div className="k">Matches</div><div className="v">{result.matches}</div></div>
+                <div className="stat score"><div className="k">Score</div><div className="v">{result.score}</div></div>
+                <div className="stat"><div className="k">Status</div><div className="v" style={{ fontSize: '1.1rem' }}>
+                  {result.durum === 'kazandi' ? 'Won ✓' : result.durum === 'kaybetti' ? 'Lost' : 'Unclear'}
                 </div></div>
               </div>
               {result.won && (
                 <>
-                  <button className="secondary" onClick={showCertificate}>Sertifikayı Göster</button>
+                  <button className="secondary" onClick={showCertificate}>Show Certificate</button>
                   {certDataUrl && (
                     <div style={{ marginTop: '14px' }}>
-                      <img src={certDataUrl} alt="sertifika" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
+                      <img src={certDataUrl} alt="certificate" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
                       <div style={{ fontSize: '0.8rem', color: 'var(--chalk)', marginTop: '8px', textAlign: 'center' }}>
-                        Görsele sağ tıklayıp (mobilde uzun basıp) &quot;Resmi kaydet&quot; ile indirebilirsin.
+                        Right-click (or long-press on mobile) the image and choose &quot;Save image&quot; to download it.
                       </div>
                     </div>
                   )}
@@ -214,16 +214,16 @@ export default function Home() {
         </div>
 
         <div className="panel">
-          <p className="panel-title">SKOR TABLOSU</p>
+          <p className="panel-title">LEADERBOARD</p>
           {board.length === 0 ? (
-            <div className="empty">Henüz kupon yok. İlk sırayı sen al.</div>
+            <div className="empty">No slips yet. Take the top spot.</div>
           ) : (
             board.map((e, i) => (
               <div className={`board-row ${i === 0 ? 'top1' : ''}`} key={i}>
                 <div className="rank">{i + 1}</div>
                 <div>
                   <div className="name">{e.nickname}</div>
-                  <div className="meta">{Number(e.odds).toFixed(2)} oran · {e.matches} maç</div>
+                  <div className="meta">{Number(e.odds).toFixed(2)} odds · {e.matches} matches</div>
                 </div>
                 <div className="pts">{e.score}</div>
               </div>
@@ -232,7 +232,7 @@ export default function Home() {
         </div>
 
         <div className="note">
-          Puanlama eğlence amaçlıdır, gerçek bahis sonucu garantisi vermez.
+          Scoring is for entertainment purposes only and is not a guarantee of any betting outcome.
         </div>
       </div>
 
