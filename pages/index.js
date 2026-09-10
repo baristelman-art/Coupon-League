@@ -78,6 +78,74 @@ export default function Home() {
     }
   }
 
+  const [certDataUrl, setCertDataUrl] = useState(null);
+
+  function showCertificate() {
+    if (!result || !imageDataUrl) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 600;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#0A1128';
+    ctx.fillRect(0, 0, 900, 600);
+    ctx.strokeStyle = '#FFB627';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(16, 16, 868, 568);
+
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = '700 34px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('KUPON LİGİ SERTİFİKASI', 450, 70);
+
+    const img = new Image();
+    img.onload = () => {
+      const boxW = 380, boxH = 420, boxX = 50, boxY = 110;
+      const scale = Math.min(boxW / img.width, boxH / img.height);
+      const dw = img.width * scale, dh = img.height * scale;
+      ctx.strokeStyle = '#2A4A3D';
+      ctx.strokeRect(boxX - 4, boxY - 4, boxW + 8, boxH + 8);
+      ctx.drawImage(img, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
+
+      const rx = 480;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#8C9C93';
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.fillText('RUMUZ', rx, 150);
+      ctx.fillStyle = '#F4F1E8';
+      ctx.font = '700 28px Inter, sans-serif';
+      ctx.fillText(nickname, rx, 182);
+
+      ctx.fillStyle = '#8C9C93';
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.fillText('TOPLAM ORAN', rx, 240);
+      ctx.fillStyle = '#F4F1E8';
+      ctx.font = '700 28px Inter, sans-serif';
+      ctx.fillText(result.odds.toFixed(2), rx, 272);
+
+      ctx.fillStyle = '#8C9C93';
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.fillText('MAÇ SAYISI', rx, 330);
+      ctx.fillStyle = '#F4F1E8';
+      ctx.font = '700 28px Inter, sans-serif';
+      ctx.fillText(String(result.matches), rx, 362);
+
+      ctx.fillStyle = '#8C9C93';
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.fillText('PUAN', rx, 420);
+      ctx.fillStyle = '#FFB627';
+      ctx.font = '700 56px Inter, sans-serif';
+      ctx.fillText(String(result.score), rx, 470);
+
+      ctx.fillStyle = '#8C9C93';
+      ctx.font = '400 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(new Date().toLocaleDateString('tr-TR'), 450, 560);
+
+      setCertDataUrl(canvas.toDataURL('image/png'));
+    };
+    img.src = imageDataUrl;
+  }
+
   return (
     <>
       <Head>
@@ -128,6 +196,19 @@ export default function Home() {
                   {result.durum === 'kazandi' ? 'Kazandı ✓' : result.durum === 'kaybetti' ? 'Kaybetti' : 'Belirsiz'}
                 </div></div>
               </div>
+              {result.won && (
+                <>
+                  <button className="secondary" onClick={showCertificate}>Sertifikayı Göster</button>
+                  {certDataUrl && (
+                    <div style={{ marginTop: '14px' }}>
+                      <img src={certDataUrl} alt="sertifika" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
+                      <div style={{ fontSize: '0.8rem', color: 'var(--chalk)', marginTop: '8px', textAlign: 'center' }}>
+                        Görsele sağ tıklayıp (mobilde uzun basıp) &quot;Resmi kaydet&quot; ile indirebilirsin.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -179,6 +260,8 @@ export default function Home() {
         .preview{max-width:100%;max-height:220px;border-radius:4px;margin-top:12px;}
         button.primary{width:100%;margin-top:14px;padding:13px;background:var(--amber);color:var(--navy);border:none;border-radius:4px;font-weight:700;font-size:0.95rem;cursor:pointer;}
         button.primary:disabled{opacity:0.5;cursor:not-allowed;}
+        button.secondary{width:100%;margin-top:10px;padding:12px;background:transparent;color:var(--floodlight);border:1px solid var(--chalk-line);border-radius:4px;font-weight:600;font-size:0.9rem;cursor:pointer;}
+        button.secondary:hover{border-color:var(--amber);color:var(--amber);}
         .status{font-size:0.88rem;color:var(--chalk);margin-top:10px;}
         .status.err{color:var(--loss);} .status.ok{color:var(--win);}
         .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;}
