@@ -44,10 +44,10 @@ export default async function handler(req, res) {
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
             {
               type: 'text',
-              text: 'Bu bir bahis kuponu ekran görüntüsü. SADECE şu formatta JSON döndür, başka metin ekleme: ' +
-                '{"toplam_oran": <sayı>, "mac_sayisi": <tam sayı>, "durum": "kazandi" veya "kaybetti" veya "belirsiz", "gecerli_kupon": true/false}. ' +
-                'Oranların çarpımı kupon üzerinde yazıyorsa onu kullan, yoksa görünen oranları çarparak hesapla. ' +
-                'Görsel bir bahis kuponuna benzemiyorsa gecerli_kupon değerini false yap.'
+              text: 'This is a screenshot of a sports betting slip. Reply with ONLY JSON in this exact format, no other text: ' +
+                '{"toplam_oran": <number>, "mac_sayisi": <integer>, "durum": "kazandi" or "kaybetti" or "belirsiz", "gecerli_kupon": true/false}. ' +
+                'If the combined/total odds are printed on the slip, use that value; otherwise multiply the individual odds shown. ' +
+                'If the image does not look like a betting slip, set gecerli_kupon to false.'
             }
           ]
         }]
