@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/determine-winners", "schedule": "0 0 * * *" }
+  ]
+}
