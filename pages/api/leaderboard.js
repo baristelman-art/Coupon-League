@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   let query = supabase
     .from('entries')
-    .select('nickname, odds, matches, score, created_at')
+    .select('nickname, odds, matches, score, status, created_at')
     .order('score', { ascending: false })
     .limit(limit);
 
