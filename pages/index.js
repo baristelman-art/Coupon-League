@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 
+const STATUS_LABEL = {
+  kazandi: 'Won ✓',
+  kaybetti: 'Lost',
+  devam_ediyor: 'Live',
+  oynanmadi: 'Not Placed'
+};
+
 export default function Home() {
   const [nickname, setNickname] = useState('');
   const [imageDataUrl, setImageDataUrl] = useState(null);
@@ -10,6 +17,8 @@ export default function Home() {
   const [board, setBoard] = useState([]);
   const [period, setPeriod] = useState('all');
   const [winners, setWinners] = useState({ daily: null, weekly: null, monthly: null });
+  const [certDataUrl, setCertDataUrl] = useState(null);
+  const [posterMode, setPosterMode] = useState(null); // 'winner' | 'fun'
 
   const loadBoard = useCallback(async (p) => {
     try {
@@ -61,6 +70,8 @@ export default function Home() {
     setLoading(true);
     setStatus({ text: 'Analyzing slip…', kind: '' });
     setResult(null);
+    setCertDataUrl(null);
+    setPosterMode(null);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -73,26 +84,19 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || 'Unknown error');
 
       if (data.valid === false) {
-        setStatus({ text: "This image doesn't look like a betting slip.", kind: 'err' });
+        setStatus({ text: "Couldn't read this as a real betting slip. Try a clearer screenshot.", kind: 'err' });
         return;
       }
 
       setResult(data);
-      if (data.won) {
-        setStatus({ text: 'Your slip was added to the leaderboard.', kind: 'ok' });
-        loadBoard(period);
-      } else {
-        setStatus({ text: 'Only winning slips make the leaderboard.', kind: 'err' });
-      }
+      setStatus({ text: `You're ranked #${data.rank} on the leaderboard!`, kind: 'ok' });
+      loadBoard(period);
     } catch (err) {
       setStatus({ text: 'Error: ' + err.message, kind: 'err' });
     } finally {
       setLoading(false);
     }
   }
-
-  const [certDataUrl, setCertDataUrl] = useState(null);
-  const [posterMode, setPosterMode] = useState(null); // 'winner' | 'fun'
 
   const loserLines = [
     "Bold strategy. Very bold.",
@@ -113,6 +117,20 @@ export default function Home() {
     "On the board! Keep climbing.",
     "Solid slip. Solid effort.",
     "This one almost had it all."
+  ];
+  const liveLines = [
+    "Still cooking. No peeking.",
+    "The suspense is doing damage.",
+    "Currently living in the odds.",
+    "Ask again after the final whistle.",
+    "In progress. Nerves: also in progress."
+  ];
+  const unplacedLines = [
+    "Big dreams, zero dollars wagered.",
+    "The safest bet is the one you never place.",
+    "Window shopping, sportsbook edition.",
+    "Confidence: 100%. Commitment: 0%.",
+    "A parlay of pure potential."
   ];
 
   function pickLine(lines) {
@@ -137,8 +155,61 @@ export default function Home() {
     ctx.fillText(line, x, curY);
   }
 
+  function drawTrophy(ctx, cx, cy, scale, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 3;
+    // cup bowl
+    ctx.beginPath();
+    ctx.moveTo(-30, -40);
+    ctx.quadraticCurveTo(-32, 10, 0, 14);
+    ctx.quadraticCurveTo(32, 10, 30, -40);
+    ctx.closePath();
+    ctx.fill();
+    // handles
+    ctx.beginPath();
+    ctx.arc(-38, -28, 12, Math.PI * 0.3, Math.PI * 1.6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(38, -28, 12, Math.PI * 1.4, Math.PI * 2.7);
+    ctx.stroke();
+    // stem
+    ctx.fillRect(-5, 14, 10, 18);
+    // base
+    ctx.beginPath();
+    ctx.moveTo(-22, 32);
+    ctx.lineTo(22, 32);
+    ctx.lineTo(16, 44);
+    ctx.lineTo(-16, 44);
+    ctx.closePath();
+    ctx.fill();
+    // top rim highlight
+    ctx.beginPath();
+    ctx.ellipse(0, -40, 30, 8, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawStar(ctx, cx, cy, r, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * r, -Math.sin((18 + i * 72) * Math.PI / 180) * r);
+      ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * r * 0.4, -Math.sin((54 + i * 72) * Math.PI / 180) * r * 0.4);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   function showCertificate() {
-    if (!result || !imageDataUrl) return;
+    if (!result) return;
     setPosterMode('winner');
     const canvas = document.createElement('canvas');
     canvas.width = 900; canvas.height = 600;
@@ -150,68 +221,71 @@ export default function Home() {
     ctx.lineWidth = 4;
     ctx.strokeRect(16, 16, 868, 568);
 
+    drawStar(ctx, 70, 60, 10, 'rgba(255,182,39,0.5)');
+    drawStar(ctx, 830, 60, 10, 'rgba(255,182,39,0.5)');
+    drawStar(ctx, 70, 540, 10, 'rgba(255,182,39,0.5)');
+    drawStar(ctx, 830, 540, 10, 'rgba(255,182,39,0.5)');
+
     ctx.fillStyle = '#F4F1E8';
-    ctx.font = '700 34px Inter, sans-serif';
+    ctx.font = '700 30px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('COUPON LEAGUE CERTIFICATE', 450, 70);
+    ctx.fillText('COUPON LEAGUE CHAMPION', 450, 68);
 
-    const img = new Image();
-    img.onload = () => {
-      const boxW = 380, boxH = 420, boxX = 50, boxY = 110;
-      const scale = Math.min(boxW / img.width, boxH / img.height);
-      const dw = img.width * scale, dh = img.height * scale;
-      ctx.strokeStyle = '#2A4A3D';
-      ctx.strokeRect(boxX - 4, boxY - 4, boxW + 8, boxH + 8);
-      ctx.drawImage(img, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
+    drawTrophy(ctx, 220, 260, 2.6, '#FFB627');
 
-      const rx = 480;
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#8C9C93';
-      ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('NICKNAME', rx, 150);
-      ctx.fillStyle = '#F4F1E8';
-      ctx.font = '700 28px Inter, sans-serif';
-      ctx.fillText(nickname, rx, 182);
+    const rx = 470;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8C9C93';
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillText('NICKNAME', rx, 150);
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = '700 30px Inter, sans-serif';
+    ctx.fillText(nickname, rx, 184);
 
-      ctx.fillStyle = '#8C9C93';
-      ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('TOTAL ODDS', rx, 240);
-      ctx.fillStyle = '#F4F1E8';
-      ctx.font = '700 28px Inter, sans-serif';
-      ctx.fillText(result.odds.toFixed(2), rx, 272);
+    ctx.fillStyle = '#8C9C93';
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillText('TOTAL ODDS', rx, 250);
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = '700 30px Inter, sans-serif';
+    ctx.fillText(result.odds.toFixed(2), rx, 284);
 
-      ctx.fillStyle = '#8C9C93';
-      ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('MATCHES', rx, 330);
-      ctx.fillStyle = '#F4F1E8';
-      ctx.font = '700 28px Inter, sans-serif';
-      ctx.fillText(String(result.matches), rx, 362);
+    ctx.fillStyle = '#8C9C93';
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillText('MATCHES', rx, 350);
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = '700 30px Inter, sans-serif';
+    ctx.fillText(String(result.matches), rx, 384);
 
-      ctx.fillStyle = '#8C9C93';
-      ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('SCORE', rx, 420);
-      ctx.fillStyle = '#FFB627';
-      ctx.font = '700 56px Inter, sans-serif';
-      ctx.fillText(String(result.score), rx, 470);
+    ctx.fillStyle = '#8C9C93';
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillText('SCORE', rx, 450);
+    ctx.fillStyle = '#FFB627';
+    ctx.font = '700 60px Inter, sans-serif';
+    ctx.fillText(String(result.score), rx, 502);
 
-      ctx.fillStyle = '#8C9C93';
-      ctx.font = '400 14px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(new Date().toLocaleDateString('en-US'), 450, 560);
+    ctx.fillStyle = '#8C9C93';
+    ctx.font = '400 14px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(new Date().toLocaleDateString('en-US') + '  ·  coupon-league.vercel.app', 450, 560);
 
-      setCertDataUrl(canvas.toDataURL('image/png'));
-    };
-    img.src = imageDataUrl;
+    setCertDataUrl(canvas.toDataURL('image/png'));
   }
 
   function showFunnyPoster() {
-    if (!result || !imageDataUrl) return;
+    if (!result) return;
     setPosterMode('fun');
-    const isRunnerUp = result.won && result.rank > 1;
-    const line = pickLine(isRunnerUp ? runnerUpLines : loserLines);
-    const stamp = isRunnerUp ? 'SO CLOSE' : 'NICE TRY';
-    const bg = isRunnerUp ? '#0B3D2E' : '#3A1620';
-    const accent = isRunnerUp ? '#6FCF87' : '#D96C63';
+
+    let lines, stamp, bg, accent;
+    if (result.durum === 'devam_ediyor') {
+      lines = liveLines; stamp = 'LIVE'; bg = '#1B2A4A'; accent = '#6FA8DC';
+    } else if (result.durum === 'oynanmadi') {
+      lines = unplacedLines; stamp = 'ALMOST'; bg = '#3A2E1B'; accent = '#FFB627';
+    } else if (result.won && result.rank > 1) {
+      lines = runnerUpLines; stamp = 'SO CLOSE'; bg = '#0B3D2E'; accent = '#6FCF87';
+    } else {
+      lines = loserLines; stamp = 'NICE TRY'; bg = '#3A1620'; accent = '#D96C63';
+    }
+    const line = pickLine(lines);
 
     const canvas = document.createElement('canvas');
     canvas.width = 900; canvas.height = 600;
@@ -223,12 +297,16 @@ export default function Home() {
     ctx.lineWidth = 4;
     ctx.strokeRect(16, 16, 868, 568);
 
+    drawStar(ctx, 90, 500, 8, accent + '55'.length === 2 ? accent : accent);
+    drawStar(ctx, 810, 90, 12, accent);
+    drawStar(ctx, 70, 90, 8, accent);
+
     ctx.save();
     ctx.translate(740, 100);
     ctx.rotate(-0.25);
     ctx.strokeStyle = accent;
     ctx.lineWidth = 5;
-    ctx.strokeRect(-90, -28, 180, 56);
+    ctx.strokeRect(-95, -28, 190, 56);
     ctx.fillStyle = accent;
     ctx.font = '700 22px Inter, sans-serif';
     ctx.textAlign = 'center';
@@ -236,48 +314,57 @@ export default function Home() {
     ctx.restore();
 
     ctx.fillStyle = '#F4F1E8';
-    ctx.font = '700 32px Inter, sans-serif';
+    ctx.font = '700 34px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('COUPON LEAGUE', 450, 65);
+    ctx.fillText('COUPON LEAGUE', 450, 68);
 
-    const img = new Image();
-    img.onload = () => {
-      const boxW = 380, boxH = 380, boxX = 50, boxY = 110;
-      const scale = Math.min(boxW / img.width, boxH / img.height);
-      const dw = img.width * scale, dh = img.height * scale;
-      ctx.strokeStyle = accent;
-      ctx.strokeRect(boxX - 4, boxY - 4, boxW + 8, boxH + 8);
-      ctx.drawImage(img, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
+    drawTrophy(ctx, 220, 260, 2.2, accent + '' /* tinted */);
 
-      const rx = 480;
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#D8D2C2';
-      ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('NICKNAME', rx, 150);
-      ctx.fillStyle = '#F4F1E8';
-      ctx.font = '700 28px Inter, sans-serif';
-      ctx.fillText(nickname, rx, 182);
+    const rx = 470;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#D8D2C2';
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillText('NICKNAME', rx, 150);
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = '700 30px Inter, sans-serif';
+    ctx.fillText(nickname, rx, 184);
 
-      ctx.fillStyle = '#D8D2C2';
-      ctx.font = '600 16px Inter, sans-serif';
-      ctx.fillText('SCORE', rx, 240);
-      ctx.fillStyle = accent;
-      ctx.font = '700 40px Inter, sans-serif';
-      ctx.fillText(String(result.score), rx, 280);
+    ctx.fillStyle = '#D8D2C2';
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillText('SCORE', rx, 250);
+    ctx.fillStyle = accent;
+    ctx.font = '700 44px Inter, sans-serif';
+    ctx.fillText(String(result.score), rx, 294);
 
-      ctx.fillStyle = '#F4F1E8';
-      ctx.font = 'italic 600 22px Inter, sans-serif';
-      ctx.textAlign = 'left';
-      wrapText(ctx, '"' + line + '"', rx, 340, 340, 30);
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = 'italic 600 23px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    wrapText(ctx, '"' + line + '"', rx, 350, 350, 30);
 
-      ctx.fillStyle = '#8C9C93';
-      ctx.font = '400 14px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(new Date().toLocaleDateString('en-US'), 450, 560);
+    ctx.fillStyle = '#8C9C93';
+    ctx.font = '400 14px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(new Date().toLocaleDateString('en-US') + '  ·  coupon-league.vercel.app', 450, 560);
 
-      setCertDataUrl(canvas.toDataURL('image/png'));
-    };
-    img.src = imageDataUrl;
+    setCertDataUrl(canvas.toDataURL('image/png'));
+  }
+
+  async function sharePoster() {
+    if (!certDataUrl) return;
+    try {
+      const blob = await (await fetch(certDataUrl)).blob();
+      const file = new File([blob], 'coupon-league.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Coupon League', text: 'Check out my Coupon League result!' });
+      } else {
+        const a = document.createElement('a');
+        a.href = certDataUrl;
+        a.download = 'coupon-league.png';
+        a.click();
+      }
+    } catch (e) {
+      // user cancelled share or it failed — no-op
+    }
   }
 
   return (
@@ -319,41 +406,31 @@ export default function Home() {
 
           {result && result.valid && (
             <div className="result">
-              <div className="rank-badge">
-                {result.won ? `YOUR RANK: #${result.rank}` : 'DID NOT QUALIFY'}
-              </div>
+              <div className="rank-badge">RANK #{result.rank}</div>
               <div className="result-grid">
                 <div className="stat"><div className="k">Total Odds</div><div className="v">{result.odds.toFixed(2)}</div></div>
                 <div className="stat"><div className="k">Matches</div><div className="v">{result.matches}</div></div>
                 <div className="stat score"><div className="k">Score</div><div className="v">{result.score}</div></div>
                 <div className="stat"><div className="k">Status</div><div className="v" style={{ fontSize: '1.1rem' }}>
-                  {result.durum === 'kazandi' ? 'Won ✓' : result.durum === 'kaybetti' ? 'Lost' : 'Unclear'}
+                  {STATUS_LABEL[result.durum] || result.durum}
                 </div></div>
               </div>
+
               {(result.won && result.rank === 1) ? (
-                <>
-                  <button className="secondary" onClick={showCertificate}>Show Certificate</button>
-                  {posterMode === 'winner' && certDataUrl && (
-                    <div style={{ marginTop: '14px' }}>
-                      <img src={certDataUrl} alt="certificate" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
-                      <div style={{ fontSize: '0.8rem', color: 'var(--chalk)', marginTop: '8px', textAlign: 'center' }}>
-                        Right-click (or long-press on mobile) the image and choose &quot;Save image&quot; to download it.
-                      </div>
-                    </div>
-                  )}
-                </>
+                <button className="poster-btn winner" onClick={showCertificate}>🏆 Show My Champion Poster</button>
               ) : (
-                <>
-                  <button className="secondary" onClick={showFunnyPoster}>Show Fun Poster</button>
-                  {posterMode === 'fun' && certDataUrl && (
-                    <div style={{ marginTop: '14px' }}>
-                      <img src={certDataUrl} alt="poster" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
-                      <div style={{ fontSize: '0.8rem', color: 'var(--chalk)', marginTop: '8px', textAlign: 'center' }}>
-                        Right-click (or long-press on mobile) the image and choose &quot;Save image&quot; to download it.
-                      </div>
-                    </div>
-                  )}
-                </>
+                <button className="poster-btn fun" onClick={showFunnyPoster}>🎉 Show My Poster</button>
+              )}
+
+              {certDataUrl && (
+                <div style={{ marginTop: '14px' }}>
+                  <img src={certDataUrl} alt="poster" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
+                  <button className="share-btn" onClick={sharePoster}>📤 Share / Save Poster</button>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--chalk)', marginTop: '6px', textAlign: 'center' }}>
+                    Or right-click (long-press on mobile) the image to save it directly.
+                  </div>
+                  <ReactionButtons nickname={nickname} />
+                </div>
               )}
             </div>
           )}
@@ -378,6 +455,7 @@ export default function Home() {
                   <div className="name">{e.nickname}</div>
                   <div className="meta">{Number(e.odds).toFixed(2)} odds · {e.matches} matches</div>
                 </div>
+                <div className={`status-tag st-${e.status || 'kazandi'}`}>{(STATUS_LABEL[e.status] || 'Won ✓').replace(' ✓', '')}</div>
                 <div className="pts">{e.score}</div>
               </div>
             ))
@@ -430,8 +508,12 @@ export default function Home() {
         .preview{max-width:100%;max-height:220px;border-radius:4px;margin-top:12px;}
         button.primary{width:100%;margin-top:14px;padding:13px;background:var(--amber);color:var(--navy);border:none;border-radius:4px;font-weight:700;font-size:0.95rem;cursor:pointer;}
         button.primary:disabled{opacity:0.5;cursor:not-allowed;}
-        button.secondary{width:100%;margin-top:10px;padding:12px;background:transparent;color:var(--floodlight);border:1px solid var(--chalk-line);border-radius:4px;font-weight:600;font-size:0.9rem;cursor:pointer;}
-        button.secondary:hover{border-color:var(--amber);color:var(--amber);}
+        .poster-btn{width:100%;margin-top:16px;padding:16px;border:none;border-radius:6px;font-weight:800;font-size:1.05rem;cursor:pointer;letter-spacing:0.01em;box-shadow:0 4px 0 rgba(0,0,0,0.25);}
+        .poster-btn.winner{background:var(--amber);color:var(--navy);}
+        .poster-btn.fun{background:linear-gradient(135deg,var(--amber),#ff8a5c);color:var(--navy);}
+        .poster-btn:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,0.25);}
+        .share-btn{width:100%;margin-top:10px;padding:11px;background:transparent;border:1px solid var(--amber);color:var(--amber);border-radius:4px;font-weight:700;font-size:0.9rem;cursor:pointer;}
+        .share-btn:hover{background:var(--amber);color:var(--navy);}
         .status{font-size:0.88rem;color:var(--chalk);margin-top:10px;}
         .status.err{color:var(--loss);} .status.ok{color:var(--win);}
         .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;}
@@ -440,13 +522,18 @@ export default function Home() {
         .stat .v{font-family:'Anton',sans-serif;font-size:1.5rem;font-variant-numeric:tabular-nums;}
         .stat.score .v{color:var(--amber);}
         .rank-badge{display:inline-block;background:var(--amber);color:var(--navy);font-family:'Anton',sans-serif;font-size:0.85rem;padding:4px 10px;border-radius:3px;margin-bottom:10px;}
-        .board-row{display:grid;grid-template-columns:40px 1fr auto auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--chalk-line);}
+        .board-row{display:grid;grid-template-columns:40px 1fr auto auto;gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--chalk-line);}
         .board-row:last-child{border-bottom:none;}
         .board-row .rank{font-family:'Anton',sans-serif;font-size:1.3rem;color:var(--amber);text-align:center;}
         .board-row .name{font-weight:600;font-size:0.95rem;}
         .board-row .meta{font-size:0.78rem;color:var(--chalk);}
         .board-row .pts{font-family:'Anton',sans-serif;font-size:1.15rem;text-align:right;}
         .board-row.top1 .rank{color:var(--win);}
+        .status-tag{font-size:0.68rem;font-weight:700;padding:3px 7px;border-radius:3px;text-align:center;white-space:nowrap;}
+        .status-tag.st-kazandi{background:rgba(111,207,135,0.15);color:var(--win);}
+        .status-tag.st-kaybetti{background:rgba(217,108,99,0.15);color:var(--loss);}
+        .status-tag.st-devam_ediyor{background:rgba(111,168,220,0.15);color:#6FA8DC;}
+        .status-tag.st-oynanmadi{background:rgba(255,182,39,0.15);color:var(--amber);}
         .empty{color:var(--chalk);font-size:0.9rem;text-align:center;padding:20px 0;}
         .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
         .tab{padding:7px 12px;background:var(--navy);border:1px solid var(--chalk-line);border-radius:4px;color:var(--chalk);font-size:0.8rem;font-weight:600;cursor:pointer;}
@@ -461,5 +548,42 @@ export default function Home() {
         .note{margin-top:28px;font-size:0.78rem;color:var(--chalk);text-align:center;border-top:1px solid var(--chalk-line);padding-top:16px;}
       `}</style>
     </>
+  );
+}
+
+function ReactionButtons({ nickname }) {
+  const [sent, setSent] = useState(null);
+
+  async function send(reaction) {
+    if (sent) return;
+    setSent(reaction);
+    try {
+      await fetch('/api/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname, reaction })
+      });
+    } catch (e) {
+      // fail silently, don't block the user experience
+    }
+  }
+
+  if (sent) {
+    return <div className="reaction-thanks">Thanks for the feedback! {sent === 'up' ? '👍' : '👎'}</div>;
+  }
+
+  return (
+    <div className="reaction-row">
+      <span className="reaction-prompt">Was this fun?</span>
+      <button className="reaction-btn" onClick={() => send('up')}>👍</button>
+      <button className="reaction-btn" onClick={() => send('down')}>👎</button>
+      <style jsx>{`
+        .reaction-row{display:flex;align-items:center;gap:10px;margin-top:14px;justify-content:center;}
+        .reaction-prompt{font-size:0.82rem;color:var(--chalk);}
+        .reaction-btn{background:var(--navy);border:1px solid var(--chalk-line);border-radius:4px;padding:6px 12px;font-size:1.1rem;cursor:pointer;}
+        .reaction-btn:hover{border-color:var(--amber);}
+        .reaction-thanks{margin-top:14px;text-align:center;font-size:0.85rem;color:var(--win);}
+      `}</style>
+    </div>
   );
 }
