@@ -104,9 +104,19 @@ export default async function handler(req, res) {
             {
               type: 'text',
               text: 'This is a screenshot of a sports betting slip. Reply with ONLY JSON in this exact format, no other text: ' +
-                '{"toplam_oran": <number>, "mac_sayisi": <integer>, "durum": "kazandi" or "kaybetti" or "belirsiz", "gecerli_kupon": true/false}. ' +
-                'If the combined/total odds are printed on the slip, use that value; otherwise multiply the individual odds shown. ' +
-                'If the image does not look like a betting slip, set gecerli_kupon to false.'
+                '{"toplam_oran": <number>, "mac_sayisi": <integer>, "durum": "kazandi" or "kaybetti", "gecerli_kupon": true/false}. ' +
+                '\n\nODDS FORMAT: Odds may be shown as American odds (e.g. -115, +327, +8130) or decimal odds (e.g. 1.91, 2.00). ' +
+                'Convert everything to decimal-equivalent before computing toplam_oran: ' +
+                'for positive American odds, decimal = (odds / 100) + 1; for negative American odds, decimal = (100 / abs(odds)) + 1. ' +
+                '\n\nCALCULATING ODDS: If an actual settled Wager and Payout/Paid amount are both shown (not "To Win" or "Potential Payout", which are pre-settlement estimates), prefer toplam_oran = payout / wager — this is the most accurate figure. Otherwise use a printed total/combined odds for the whole parlay, or multiply the decimal-equivalent odds of each individual leg. ' +
+                '\n\nONLY ACCEPT SETTLED, PAID-OUT SLIPS: This is the most important rule. gecerli_kupon must be true ONLY if the slip clearly shows a final, settled result with real money already paid: ' +
+                'either an explicit "Won"/"WON" label with a received payout amount, or an explicit "Lost"/"LOSE" label. ' +
+                'Set gecerli_kupon to FALSE for anything else, including: a bet slip that has not been placed yet (buttons like "Place Bet", "Accept & Place Bet", "Log In to Bet", "Clear All", per-pick remove/trash/X icons, a $0 or "Enter Wager" field); ' +
+                'a bet that is still open, live, or in-progress (e.g. a "Cash Out" button, an "Open"/"Live" tab, a bet-confirmation screen like "Good Luck!" with no result yet); ' +
+                'or any screen showing only a potential/estimated payout ("To Win", "Potential Payout", "PAYS $X" without a Won/Lost label) rather than an actual settled one. ' +
+                'Decorative graphics (trophies, confetti, banners) are NOT proof of settlement by themselves — some templates reuse them for unsettled bets too. When in doubt, set gecerli_kupon to false rather than guessing. ' +
+                '\n\nMULTIPLE SLIPS: If more than one separate, distinct bet slip appears stacked in the same screenshot, use only the first (topmost) one. ' +
+                '\n\nOTHER INVALID CASES: Also set gecerli_kupon to false if the image is not a real sports betting slip at all (e.g. a promotional graphic, an empty betslip mockup, unrelated content).'
             }
           ]
         }]
