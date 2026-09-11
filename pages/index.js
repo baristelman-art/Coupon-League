@@ -92,9 +92,54 @@ export default function Home() {
   }
 
   const [certDataUrl, setCertDataUrl] = useState(null);
+  const [posterMode, setPosterMode] = useState(null); // 'winner' | 'fun'
+
+  const loserLines = [
+    "Bold strategy. Very bold.",
+    "The odds were never, ever in your favor.",
+    "Somewhere, a bookmaker is smiling.",
+    "10/10 confidence, 2/10 outcome.",
+    "This slip deserves a moment of silence.",
+    "Maybe fewer legs next time?",
+    "A valiant effort. A very valiant effort.",
+    "Your parlay had dreams. Big dreams."
+  ];
+  const runnerUpLines = [
+    "So close, yet so far.",
+    "The podium is closer than you think.",
+    "Certified risk-taker. Respect.",
+    "Not first place, but first place energy.",
+    "The rankings fear you.",
+    "On the board! Keep climbing.",
+    "Solid slip. Solid effort.",
+    "This one almost had it all."
+  ];
+
+  function pickLine(lines) {
+    const idx = (Math.abs((result.score || 0) + (result.matches || 0) + nickname.length)) % lines.length;
+    return lines[idx];
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let curY = y;
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+        ctx.fillText(line, x, curY);
+        line = words[n] + ' ';
+        curY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, curY);
+  }
 
   function showCertificate() {
     if (!result || !imageDataUrl) return;
+    setPosterMode('winner');
     const canvas = document.createElement('canvas');
     canvas.width = 900; canvas.height = 600;
     const ctx = canvas.getContext('2d');
@@ -159,6 +204,82 @@ export default function Home() {
     img.src = imageDataUrl;
   }
 
+  function showFunnyPoster() {
+    if (!result || !imageDataUrl) return;
+    setPosterMode('fun');
+    const isRunnerUp = result.won && result.rank > 1;
+    const line = pickLine(isRunnerUp ? runnerUpLines : loserLines);
+    const stamp = isRunnerUp ? 'SO CLOSE' : 'NICE TRY';
+    const bg = isRunnerUp ? '#0B3D2E' : '#3A1620';
+    const accent = isRunnerUp ? '#6FCF87' : '#D96C63';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 600;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 900, 600);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(16, 16, 868, 568);
+
+    ctx.save();
+    ctx.translate(740, 100);
+    ctx.rotate(-0.25);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 5;
+    ctx.strokeRect(-90, -28, 180, 56);
+    ctx.fillStyle = accent;
+    ctx.font = '700 22px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(stamp, 0, 8);
+    ctx.restore();
+
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = '700 32px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('COUPON LEAGUE', 450, 65);
+
+    const img = new Image();
+    img.onload = () => {
+      const boxW = 380, boxH = 380, boxX = 50, boxY = 110;
+      const scale = Math.min(boxW / img.width, boxH / img.height);
+      const dw = img.width * scale, dh = img.height * scale;
+      ctx.strokeStyle = accent;
+      ctx.strokeRect(boxX - 4, boxY - 4, boxW + 8, boxH + 8);
+      ctx.drawImage(img, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
+
+      const rx = 480;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#D8D2C2';
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.fillText('NICKNAME', rx, 150);
+      ctx.fillStyle = '#F4F1E8';
+      ctx.font = '700 28px Inter, sans-serif';
+      ctx.fillText(nickname, rx, 182);
+
+      ctx.fillStyle = '#D8D2C2';
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.fillText('SCORE', rx, 240);
+      ctx.fillStyle = accent;
+      ctx.font = '700 40px Inter, sans-serif';
+      ctx.fillText(String(result.score), rx, 280);
+
+      ctx.fillStyle = '#F4F1E8';
+      ctx.font = 'italic 600 22px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      wrapText(ctx, '"' + line + '"', rx, 340, 340, 30);
+
+      ctx.fillStyle = '#8C9C93';
+      ctx.font = '400 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(new Date().toLocaleDateString('en-US'), 450, 560);
+
+      setCertDataUrl(canvas.toDataURL('image/png'));
+    };
+    img.src = imageDataUrl;
+  }
+
   return (
     <>
       <Head>
@@ -209,12 +330,24 @@ export default function Home() {
                   {result.durum === 'kazandi' ? 'Won ✓' : result.durum === 'kaybetti' ? 'Lost' : 'Unclear'}
                 </div></div>
               </div>
-              {result.won && (
+              {(result.won && result.rank === 1) ? (
                 <>
                   <button className="secondary" onClick={showCertificate}>Show Certificate</button>
-                  {certDataUrl && (
+                  {posterMode === 'winner' && certDataUrl && (
                     <div style={{ marginTop: '14px' }}>
                       <img src={certDataUrl} alt="certificate" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
+                      <div style={{ fontSize: '0.8rem', color: 'var(--chalk)', marginTop: '8px', textAlign: 'center' }}>
+                        Right-click (or long-press on mobile) the image and choose &quot;Save image&quot; to download it.
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button className="secondary" onClick={showFunnyPoster}>Show Fun Poster</button>
+                  {posterMode === 'fun' && certDataUrl && (
+                    <div style={{ marginTop: '14px' }}>
+                      <img src={certDataUrl} alt="poster" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--chalk-line)' }} />
                       <div style={{ fontSize: '0.8rem', color: 'var(--chalk)', marginTop: '8px', textAlign: 'center' }}>
                         Right-click (or long-press on mobile) the image and choose &quot;Save image&quot; to download it.
                       </div>
