@@ -1,28 +1,18 @@
 // POST /api/analyze
 // Body: { image: "data:image/jpeg;base64,...", nickname: "..." }
-// Görseli Claude'a gönderir, oran/maç sayısı/kazandı-kaybetti bilgisini çıkarır,
-// kazandıysa Supabase'e kaydeder ve sırasını döner.
+// Görseli Claude'a gönderir, oran/maç sayısı/durum bilgisini çıkarır,
+// HERKESİ (kazandı/kaybetti/devam ediyor/oynanmadı) aynı formülle puanlayıp
+// tek bir skor tablosuna kaydeder.
 
 import { supabase } from '../../lib/db';
-import crypto from 'crypto';
+import { hashValue, getClientIp } from '../../lib/security';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '10mb' } }
 };
 
-const HOURLY_LIMIT = 10;   // aynı IP'den saatte en fazla 10 analiz denemesi
-const DAILY_LIMIT = 30;    // aynı IP'den günde en fazla 30 analiz denemesi
-
-function hashValue(value) {
-  const salt = (process.env.ANTHROPIC_API_KEY || 'fallback-salt').slice(0, 12);
-  return crypto.createHash('sha256').update(salt + ':' + value).digest('hex');
-}
-
-function getClientIp(req) {
-  const fwd = req.headers['x-forwarded-for'];
-  if (fwd) return fwd.split(',')[0].trim();
-  return req.socket?.remoteAddress || 'unknown';
-}
+const HOURLY_LIMIT = 15;   // aynı IP'den saatte en fazla 15 analiz denemesi
+const DAILY_LIMIT = 40;    // aynı IP'den günde en fazla 40 analiz denemesi
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -43,7 +33,7 @@ export default async function handler(req, res) {
   const base64 = match[2];
 
   const ipHash = hashValue(getClientIp(req));
-  const imageHash = hashValue(base64.slice(0, 5000)); // görselin baş kısmından hash, yeterince ayırt edici
+  const imageHash = hashValue(base64.slice(0, 5000));
 
   try {
     // 1) Hız sınırı kontrolü
@@ -84,8 +74,8 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: 'This slip has already been submitted.' });
     }
 
-    // 3) Denemeyi logla (sonuç ne olursa olsun, hem sınır hem tekrar kontrolü için)
-    await supabase.from('request_log').insert({ ip_hash: ipHash, image_hash: imageHash });
+    // 3) Denemeyi logla
+    await supabase.from('request_log').insert({ ip_hash: ipHash, image_hash: imageHash, nickname: nickname.trim() });
 
     const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -104,19 +94,20 @@ export default async function handler(req, res) {
             {
               type: 'text',
               text: 'This is a screenshot of a sports betting slip. Reply with ONLY JSON in this exact format, no other text: ' +
-                '{"toplam_oran": <number>, "mac_sayisi": <integer>, "durum": "kazandi" or "kaybetti", "gecerli_kupon": true/false}. ' +
+                '{"toplam_oran": <number>, "mac_sayisi": <integer>, "durum": "kazandi" or "kaybetti" or "devam_ediyor" or "oynanmadi", "gecerli_kupon": true/false}. ' +
                 '\n\nODDS FORMAT: Odds may be shown as American odds (e.g. -115, +327, +8130) or decimal odds (e.g. 1.91, 2.00). ' +
                 'Convert everything to decimal-equivalent before computing toplam_oran: ' +
                 'for positive American odds, decimal = (odds / 100) + 1; for negative American odds, decimal = (100 / abs(odds)) + 1. ' +
-                '\n\nCALCULATING ODDS: If an actual settled Wager and Payout/Paid amount are both shown (not "To Win" or "Potential Payout", which are pre-settlement estimates), prefer toplam_oran = payout / wager — this is the most accurate figure. Otherwise use a printed total/combined odds for the whole parlay, or multiply the decimal-equivalent odds of each individual leg. ' +
-                '\n\nONLY ACCEPT SETTLED, PAID-OUT SLIPS: This is the most important rule. gecerli_kupon must be true ONLY if the slip clearly shows a final, settled result with real money already paid: ' +
-                'either an explicit "Won"/"WON" label with a received payout amount, or an explicit "Lost"/"LOSE" label. ' +
-                'Set gecerli_kupon to FALSE for anything else, including: a bet slip that has not been placed yet (buttons like "Place Bet", "Accept & Place Bet", "Log In to Bet", "Clear All", per-pick remove/trash/X icons, a $0 or "Enter Wager" field); ' +
-                'a bet that is still open, live, or in-progress (e.g. a "Cash Out" button, an "Open"/"Live" tab, a bet-confirmation screen like "Good Luck!" with no result yet); ' +
-                'or any screen showing only a potential/estimated payout ("To Win", "Potential Payout", "PAYS $X" without a Won/Lost label) rather than an actual settled one. ' +
-                'Decorative graphics (trophies, confetti, banners) are NOT proof of settlement by themselves — some templates reuse them for unsettled bets too. When in doubt, set gecerli_kupon to false rather than guessing. ' +
+                '\n\nCALCULATING ODDS: If an actual settled Wager and Payout/Paid amount are both shown, prefer toplam_oran = payout / wager. ' +
+                'Otherwise use a printed total/combined odds for the whole parlay, or multiply the decimal-equivalent odds of each individual leg — this works whether the bet is settled, live, or not yet placed, since individual leg odds are visible in all cases. ' +
+                '\n\nSTATUS: Classify durum into exactly one of these: ' +
+                '"kazandi" — explicitly shown as a settled win (a "Won"/"WON" label with a received payout). ' +
+                '"kaybetti" — explicitly shown as a settled loss ("Lost"/"LOSE" label). ' +
+                '"devam_ediyor" — the bet has been placed and is live/open/pending (e.g. "Cash Out" button, "Open"/"Live" tab, a bet-confirmation screen with no result yet). ' +
+                '"oynanmadi" — the bet slip has not been placed at all (e.g. "Place Bet", "Log In to Bet", "Clear All", per-pick remove/X icons, a $0/"Enter Wager" field). ' +
+                'Still extract toplam_oran and mac_sayisi as best you can in every case, even for devam_ediyor and oynanmadi slips, from the individual leg odds shown. ' +
                 '\n\nMULTIPLE SLIPS: If more than one separate, distinct bet slip appears stacked in the same screenshot, use only the first (topmost) one. ' +
-                '\n\nOTHER INVALID CASES: Also set gecerli_kupon to false if the image is not a real sports betting slip at all (e.g. a promotional graphic, an empty betslip mockup, unrelated content).'
+                '\n\nVALIDITY: Set gecerli_kupon to false ONLY if the image is not a real sports betting slip at all (e.g. a promotional graphic, unrelated content) or no odds/picks are legible at all. Any real betslip — settled, live, or unplaced — is gecerli_kupon: true.'
             }
           ]
         }]
@@ -147,28 +138,21 @@ export default async function handler(req, res) {
 
     const odds = Number(parsed.toplam_oran) || 0;
     const matches = Number(parsed.mac_sayisi) || 0;
-    const won = parsed.durum === 'kazandi';
-    const score = won ? Math.round(odds * 10 + matches * 5) : 0;
+    const status = ['kazandi', 'kaybetti', 'devam_ediyor', 'oynanmadi'].includes(parsed.durum) ? parsed.durum : 'oynanmadi';
+    const won = status === 'kazandi';
+    const score = Math.round(odds * 10 + matches * 5);
 
-    let rank = null;
+    const { error: insertErr } = await supabase
+      .from('entries')
+      .insert({ nickname: nickname.trim(), odds, matches, score, won, status });
+    if (insertErr) throw insertErr;
 
-    if (won) {
-      const { data: inserted, error: insertErr } = await supabase
-        .from('entries')
-        .insert({ nickname: nickname.trim(), odds, matches, score, won })
-        .select()
-        .single();
-
-      if (insertErr) throw insertErr;
-
-      const { count, error: countErr } = await supabase
-        .from('entries')
-        .select('*', { count: 'exact', head: true })
-        .gt('score', score);
-
-      if (countErr) throw countErr;
-      rank = (count || 0) + 1;
-    }
+    const { count, error: countErr } = await supabase
+      .from('entries')
+      .select('*', { count: 'exact', head: true })
+      .gt('score', score);
+    if (countErr) throw countErr;
+    const rank = (count || 0) + 1;
 
     return res.status(200).json({
       valid: true,
@@ -177,7 +161,7 @@ export default async function handler(req, res) {
       matches,
       score,
       rank,
-      durum: parsed.durum
+      durum: status
     });
 
   } catch (err) {
